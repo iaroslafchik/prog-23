@@ -5,38 +5,40 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Rebar;
 
-namespace lab_prog_3
-{
-    public partial class Form1 : Form
-    {
-        int oldNodeCount = 4;
-        int nodeCount = 5;
+namespace lab_prog_3 {
 
-        public Form1()
-        {
+
+    public partial class Form1 : Form {
+        int verticesCount;
+        double graphAngle;
+
+        public Form1() {
             InitializeComponent();
-            numericUpDown1.Value = nodeCount;
-            dataGridView1.RowCount = nodeCount;
-            dataGridView1.ColumnCount = nodeCount;
+
+            numericUpDownVertices.Value = 5;
+            graphAngle = (60 / 360) * (Math.PI * 2);
+
+            NumericUpDownVertices_ValueChanged(this, EventArgs.Empty);
+            ButtonPopulate_Click(this, EventArgs.Empty);
         }
 
-        private void Form1_Paint(object sender, PaintEventArgs e)
-        {
-            button3.Text = string.Format("Заполнить ({0})", dataGridView1.Rows.Count * dataGridView1.Columns.Count);
-            button4.Text = string.Format("Удалить ({0})", dataGridView1.Rows.Count * dataGridView1.Columns.Count);
-        }
+        //private void Form1_Paint(object sender, PaintEventArgs e) {
+        //    buttonPopulate.Text = string.Format("Заполнить {0}", dataGridViewAdjacencyTable.Rows.Count * dataGridViewAdjacencyTable.Columns.Count);
+        //    buttonClear.Text = string.Format("Удалить {0}", dataGridViewAdjacencyTable.Rows.Count * dataGridViewAdjacencyTable.Columns.Count);
+        //}
 
-        private void button3_Click(object sender, EventArgs e)
-        {
+        private void ButtonPopulate_Click(object sender, EventArgs e) {
             var rand = new Random();
 
-            foreach (DataGridViewRow row in dataGridView1.Rows)
-            {
-                foreach (DataGridViewCell cell in row.Cells)
-                {
+            foreach (DataGridViewRow row in dataGridViewAdjacencyTable.Rows) {
+                foreach (DataGridViewCell cell in row.Cells) {
+                    if (cell.Value != null)
+                        continue;
                     if (cell.RowIndex == cell.ColumnIndex)
                         cell.Value = 0;
 
@@ -44,88 +46,87 @@ namespace lab_prog_3
                         cell.Value = rand.Next(2);
 
                     if (cell.RowIndex > cell.ColumnIndex)
-                        cell.Value = dataGridView1[cell.RowIndex, cell.ColumnIndex].Value;
+                        cell.Value = dataGridViewAdjacencyTable[cell.RowIndex, cell.ColumnIndex].Value;
                 }
             }
+            panelGraph.Invalidate();
         }
 
-        private void button4_Click(object sender, EventArgs e)
-        {
-            dataGridView1.Rows.Clear();
-            dataGridView1.Columns.Clear();
-            Refresh();
-        }
-
-        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
-        {
-            oldNodeCount = nodeCount;
-            nodeCount = (int)numericUpDown1.Value;
-            
-            if (nodeCount > oldNodeCount)
-            {
-                DataGridViewColumn column = new DataGridViewColumn();
-                column.CellTemplate = new DataGridViewTextBoxCell();
-                dataGridView1.Columns.Add(column);
-                dataGridView1.Rows.Add(new DataGridViewRow());
+        private void ButtonClear_Click(object sender, EventArgs e) {
+            foreach (DataGridViewRow row in dataGridViewAdjacencyTable.Rows) {
+                foreach (DataGridViewCell cell in row.Cells) {
+                    cell.Value = null;
+                }
             }
-            else if (nodeCount < oldNodeCount)
-            {
-                dataGridView1.Columns.Remove(new DataGridViewColumn());
-                dataGridView1.Rows.Remove(new DataGridViewRow());
-            }
-
-            pictureBox1.Refresh();
+            panelGraph.Invalidate();
         }
 
-        private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
-        {
+        private void NumericUpDownVertices_ValueChanged(object sender, EventArgs e) {
+            verticesCount = (int)numericUpDownVertices.Value;
+            dataGridViewAdjacencyTable.RowCount = dataGridViewAdjacencyTable.ColumnCount = verticesCount;
+            panelGraph.Invalidate();
+        }
+
+        private void DataGridViewAdjacencyTable_CellClick(object sender, DataGridViewCellEventArgs e) {
             int j = e.RowIndex;
             int i = e.ColumnIndex;
-            if (i == j)
+            if (i == j || dataGridViewAdjacencyTable[i,j].Value == null)
                 return;
-            int value = (int)(dataGridView1[i, j].Value);
-            value = (value + 1) % 2;
-            dataGridView1[i, j].Value = value;
-            dataGridView1[j, i].Value = value;
+            int value = (int)dataGridViewAdjacencyTable[i, j].Value;
+            value = value == 0 ? 1 : 0;
+            dataGridViewAdjacencyTable[i, j].Value = value;
+            dataGridViewAdjacencyTable[j, i].Value = value;
+            panelGraph.Invalidate();
         }
 
-        private void pictureBox1_Paint(object sender, PaintEventArgs e)
-        {
-            Graphics gr = e.Graphics;
+        private void PanelGraph_Paint(object sender, PaintEventArgs e) {
+            Graphics graph = panelGraph.CreateGraphics();
 
-            Pen circle = new Pen(Color.Black);
-            Pen edge = new Pen(Color.Blue)
-            {
-                Width = 4
-            };
-            int nodeRadius = 16;
-            double nodeStep = 2 * Math.PI / nodeCount;
-            Font nodeFont = new Font(FontFamily.GenericSansSerif, 10);
+            double circleRadius = (int)(0.8 * Math.Min(panelGraph.Width, panelGraph.Height));
+            int vertexRadius = 16;
+            double vertexStep = 2 * Math.PI / verticesCount;
 
-            int circleRadius = 200;
-
-            Point pictureBoxCenter = new Point()
-            {
-                X = pictureBox1.Width / 2,
-                Y = pictureBox1.Height / 2
-            };
-
-            for (int i = 0; i < nodeCount; i++)
-            {
-                Size nodeSize = new Size()
-                {
-                    Width = nodeRadius,
-                    Height = nodeRadius
-                };
-                Point nodePosition = new Point()
-                {
-                    X = (int)(circleRadius / 2 * Math.Cos(i * nodeStep) + pictureBoxCenter.X - nodeSize.Width / 2),
-                    Y = (int)(circleRadius / 2 * Math.Sin(i * nodeStep) + pictureBoxCenter.Y - nodeSize.Height / 2)
-                };
-                Rectangle nodeFrame = new Rectangle(nodePosition, nodeSize);
-                gr.FillEllipse(Brushes.Red, nodeFrame);
-                gr.DrawString((i + 1).ToString(), nodeFont, Brushes.Black, nodePosition);
+            for (int i = 0; i < verticesCount; i++) {
+                for (int j = i; j < verticesCount; j++) {
+                    if (i == j || dataGridViewAdjacencyTable[i, j].Value == null || (int)dataGridViewAdjacencyTable[i,j].Value != 1)
+                        continue;
+                    graph.DrawLine(Pens.Black,
+                        (int)(circleRadius / 2 * Math.Cos(i * vertexStep + graphAngle) + panelGraph.Width / 2),
+                        (int)(circleRadius / 2 * Math.Sin(i * vertexStep + graphAngle) + panelGraph.Height / 2),
+                        (int)(circleRadius / 2 * Math.Cos(j * vertexStep + graphAngle) + panelGraph.Width / 2),
+                        (int)(circleRadius / 2 * Math.Sin(j * vertexStep + graphAngle) + panelGraph.Height / 2)
+                        );
+                }
+                graph.FillEllipse(Brushes.OrangeRed,
+                    (int)(circleRadius / 2 * Math.Cos(i * vertexStep + graphAngle) + panelGraph.Width / 2 - vertexRadius / 2),
+                    (int)(circleRadius / 2 * Math.Sin(i * vertexStep + graphAngle) + panelGraph.Height / 2 - vertexRadius / 2),
+                    vertexRadius,
+                    vertexRadius
+                    );
+                graph.DrawString((i + 1).ToString(), SystemFonts.DefaultFont, Brushes.Black,
+                    (int)((circleRadius + 50) / 2 * Math.Cos(i * vertexStep + graphAngle) + panelGraph.Width / 2 - vertexRadius / 2),
+                    (int)((circleRadius + 50) / 2 * Math.Sin(i * vertexStep + graphAngle) + panelGraph.Height / 2 - vertexRadius / 2)
+                    );
             }
+        }
+
+        private void NumericUpDownAngle_ValueChanged(object sender, EventArgs e) {
+            numericUpDownAngle.Value %= 360;
+            graphAngle = ((int)numericUpDownAngle.Value / 360.0) * (Math.PI * 2);
+            panelGraph.Invalidate();
+        }
+
+        private void ButtonAnimation_Click(object sender, EventArgs e) {
+            Thread animation = new Thread(Animation);
+            animation.Start();
+        }
+
+        void Animation() {
+            while (true) {
+                graphAngle++;
+                panelGraph.Invalidate();
+                Thread.Sleep(1);
+            } 
         }
     }
 }
